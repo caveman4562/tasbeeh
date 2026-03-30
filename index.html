@@ -1,0 +1,493 @@
+import React, { useState, useEffect } from 'react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
+
+interface Dhikr {
+  id: string;
+  name: string;
+  arabicName: string;
+  target: number;
+  currentCount: number;
+  color: string;
+}
+
+interface DailyLog {
+  date: string;
+  totalCount: number;
+  dhikrs: { [key: string]: number };
+}
+
+const defaultDhikrs: Dhikr[] = [
+  { id: '1', name: 'SubhanAllah', arabicName: 'سبحان الله', target: 100, currentCount: 0, color: 'bg-emerald-500' },
+  { id: '2', name: 'Alhamdulillah', arabicName: 'الحمد لله', target: 100, currentCount: 0, color: 'bg-teal-500' },
+  { id: '3', name: 'Allahu Akbar', arabicName: 'الله أكبر', target: 100, currentCount: 0, color: 'bg-cyan-500' },
+  { id: '4', name: 'Astaghfirullah', arabicName: 'أستغفر الله', target: 100, currentCount: 0, color: 'bg-sky-500' },
+  { id: '5', name: 'La ilaha illa Allah', arabicName: 'لا إله إلا الله', target: 100, currentCount: 0, color: 'bg-blue-500' },
+  { id: '6', name: 'Durood Shareef', arabicName: 'اللهم صل على محمد', target: 100, currentCount: 0, color: 'bg-amber-500' },
+  { id: '7', name: 'Durood Ibrahim', arabicName: 'اللهم صل على محمد وعلى آل محمد', target: 100, currentCount: 0, color: 'bg-orange-500' },
+];
+
+const App: React.FC = () => {
+  const [dhikrs, setDhikrs] = useState<Dhikr[]>(() => {
+    const saved = localStorage.getItem('tasbeeh-dhikrs');
+    return saved ? JSON.parse(saved) : defaultDhikrs;
+  });
+  
+  const [selectedDhikr, setSelectedDhikr] = useState<Dhikr>(dhikrs[0]);
+  const [currentCount, setCurrentCount] = useState<number>(() => {
+    const saved = localStorage.getItem(`tasbeeh-current-${selectedDhikr.id}`);
+    return saved ? parseInt(saved) : 0;
+  });
+  
+  const [history, setHistory] = useState<DailyLog[]>(() => {
+    const saved = localStorage.getItem('tasbeeh-history');
+    return saved ? JSON.parse(saved) : [];
+  });
+  
+  const [activeTab, setActiveTab] = useState<'counter' | 'history' | 'manage'>('counter');
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newDhikr, setNewDhikr] = useState({ name: '', arabicName: '', target: 100 });
+  const [sessionCount, setSessionCount] = useState(0);
+
+  useEffect(() => {
+    localStorage.setItem('tasbeeh-dhikrs', JSON.stringify(dhikrs));
+  }, [dhikrs]);
+
+  useEffect(() => {
+    localStorage.setItem(`tasbeeh-current-${selectedDhikr.id}`, currentCount.toString());
+  }, [currentCount, selectedDhikr.id]);
+
+  useEffect(() => {
+    localStorage.setItem('tasbeeh-history', JSON.stringify(history));
+  }, [history]);
+
+  useEffect(() => {
+    setCurrentCount(selectedDhikr.currentCount);
+  }, [selectedDhikr]);
+
+  const handleIncrement = () => {
+    const newCount = currentCount + 1;
+    setCurrentCount(newCount);
+    setSessionCount(sessionCount + 1);
+    
+    setDhikrs(dhikrs.map(d => 
+      d.id === selectedDhikr.id ? { ...d, currentCount: newCount } : d
+    ));
+  };
+
+  const handleDecrement = () => {
+    if (currentCount > 0) {
+      const newCount = currentCount - 1;
+      setCurrentCount(newCount);
+      
+      setDhikrs(dhikrs.map(d => 
+        d.id === selectedDhikr.id ? { ...d, currentCount: newCount } : d
+      ));
+    }
+  };
+
+  const handleReset = () => {
+    if (confirm('Are you sure you want to reset this dhikr?')) {
+      setCurrentCount(0);
+      setSessionCount(0);
+      setDhikrs(dhikrs.map(d => 
+        d.id === selectedDhikr.id ? { ...d, currentCount: 0 } : d
+      ));
+    }
+  };
+
+  const saveTodayProgress = () => {
+    const today = new Date().toISOString().split('T')[0];
+    const existingIndex = history.findIndex(h => h.date === today);
+    
+    const todayDhikrs: { [key: string]: number } = {};
+    dhikrs.forEach(d => {
+      todayDhikrs[d.id] = d.currentCount;
+    });
+    
+    const newLog: DailyLog = {
+      date: today,
+      totalCount: dhikrs.reduce((sum, d) => sum + d.currentCount, 0),
+      dhikrs: todayDhikrs
+    };
+    
+    let newHistory;
+    if (existingIndex >= 0) {
+      newHistory = [...history];
+      newHistory[existingIndex] = newLog;
+    } else {
+      newHistory = [...history, newLog];
+    }
+    
+    setHistory(newHistory);
+    alert('Progress saved successfully!');
+  };
+
+  const addNewDhikr = () => {
+    if (newDhikr.name && newDhikr.arabicName) {
+      const colors = ['bg-emerald-500', 'bg-teal-500', 'bg-cyan-500', 'bg-sky-500', 'bg-blue-500', 'bg-indigo-500', 'bg-violet-500'];
+      const newDhikrObj: Dhikr = {
+        id: Date.now().toString(),
+        name: newDhikr.name,
+        arabicName: newDhikr.arabicName,
+        target: newDhikr.target,
+        currentCount: 0,
+        color: colors[Math.floor(Math.random() * colors.length)]
+      };
+      setDhikrs([...dhikrs, newDhikrObj]);
+      setNewDhikr({ name: '', arabicName: '', target: 100 });
+      setShowAddModal(false);
+    }
+  };
+
+  const deleteDhikr = (id: string) => {
+    if (dhikrs.length > 1 && confirm('Are you sure you want to delete this dhikr?')) {
+      const newDhikrs = dhikrs.filter(d => d.id !== id);
+      setDhikrs(newDhikrs);
+      if (selectedDhikr.id === id) {
+        setSelectedDhikr(newDhikrs[0]);
+      }
+    }
+  };
+
+  const formatDate = (dateString: React.ReactNode): string => {
+  if (typeof dateString !== 'string') return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
+  const getTotalToday = () => {
+    return dhikrs.reduce((sum, d) => sum + d.currentCount, 0);
+  };
+
+  const getOverallProgress = () => {
+    const totalTarget = dhikrs.reduce((sum, d) => sum + d.target, 0);
+    return totalTarget > 0 ? Math.round((getTotalToday() / totalTarget) * 100) : 0;
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white">
+      <header className="bg-slate-800/50 backdrop-blur-sm border-b border-slate-700 p-4">
+        <div className="max-w-lg mx-auto flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-emerald-400">Tasbeeh Tracker</h1>
+            <p className="text-slate-400 text-sm">Daily Dhikr Counter</p>
+          </div>
+          <div className="text-right">
+            <p className="text-2xl font-bold text-white">{getTotalToday()}</p>
+            <p className="text-slate-400 text-xs">Today's Count</p>
+          </div>
+        </div>
+      </header>
+
+      <div className="max-w-lg mx-auto mt-4 px-4">
+        <div className="bg-slate-800 rounded-2xl p-4 shadow-lg">
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-slate-400 text-sm">Daily Goal Progress</span>
+            <span className="text-emerald-400 font-semibold">{getOverallProgress()}%</span>
+          </div>
+          <div className="w-full bg-slate-700 rounded-full h-3">
+            <div 
+              className="bg-gradient-to-r from-emerald-500 to-teal-400 h-3 rounded-full transition-all duration-500"
+              style={{ width: `${Math.min(getOverallProgress(), 100)}%` }}
+            ></div>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-lg mx-auto mt-4 px-4">
+        <div className="flex bg-slate-800 rounded-2xl p-1">
+          {(['counter', 'history', 'manage'] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`flex-1 py-3 rounded-xl font-medium transition-all capitalize ${
+                activeTab === tab
+                  ? 'bg-emerald-500 text-white shadow-lg'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <main className="max-w-lg mx-auto p-4">
+        {activeTab === 'counter' && (
+          <div className="space-y-6">
+            <div className="w-full">
+              <label className="block text-sm text-slate-400 mb-2">Select Dhikr</label>
+              <select
+                value={selectedDhikr.id}
+                onChange={(e) => {
+                  const dhikr = dhikrs.find(d => d.id === e.target.value);
+                  if (dhikr) setSelectedDhikr(dhikr);
+                }}
+                className="w-full px-4 py-3 bg-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 appearance-none cursor-pointer"
+              >
+                {dhikrs.map((dhikr) => (
+                  <option key={dhikr.id} value={dhikr.id}>
+                    {dhikr.name} - {dhikr.currentCount}/{dhikr.target}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="bg-slate-800 rounded-3xl p-8 shadow-xl text-center">
+              <div className="mb-6">
+                <h2 className="text-3xl font-bold text-white mb-2">{selectedDhikr.name}</h2>
+                <p className="text-2xl text-emerald-400 font-arabic">{selectedDhikr.arabicName}</p>
+              </div>
+
+              <div className="relative mb-8">
+                <div className="w-48 h-48 mx-auto rounded-full border-8 border-slate-700 flex items-center justify-center relative">
+                  <svg className="absolute w-48 h-48 -rotate-90">
+                    <circle
+                      cx="96"
+                      cy="96"
+                      r="88"
+                      stroke="currentColor"
+                      strokeWidth="8"
+                      fill="none"
+                      className="text-slate-600"
+                    />
+                    <circle
+                      cx="96"
+                      cy="96"
+                      r="88"
+                      stroke="currentColor"
+                      strokeWidth="8"
+                      fill="none"
+                      className="text-emerald-500 transition-all duration-300"
+                      strokeDasharray={`${2 * Math.PI * 88}`}
+                      strokeDashoffset={`${2 * Math.PI * 88 * (1 - Math.min(currentCount / selectedDhikr.target, 1))}`}
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                  <div className="text-center z-10">
+                    <span className="text-5xl font-bold text-white">{currentCount}</span>
+                    <p className="text-slate-400 text-sm">of {selectedDhikr.target}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-center gap-4 mb-4">
+                <button
+                  onClick={handleDecrement}
+                  className="w-16 h-16 rounded-full bg-slate-700 hover:bg-slate-600 text-white text-2xl font-bold transition-all active:scale-95"
+                >
+                  −
+                </button>
+                
+                <button
+                  onClick={handleIncrement}
+                  className="w-28 h-28 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white text-4xl font-bold shadow-lg shadow-emerald-500/30 transition-all active:scale-95"
+                >
+                  📿
+                </button>
+                
+                <button
+                  onClick={handleReset}
+                  className="w-16 h-16 rounded-full bg-slate-700 hover:bg-red-600 text-white text-lg font-medium transition-all active:scale-95"
+                >
+                  Reset
+                </button>
+              </div>
+
+              <div className="flex justify-between items-center text-sm text-slate-400">
+                <span>Session: {sessionCount}</span>
+                <span>{Math.round((currentCount / selectedDhikr.target) * 100)}% complete</span>
+              </div>
+            </div>
+
+            <button
+              onClick={saveTodayProgress}
+              className="w-full py-4 bg-slate-800 hover:bg-slate-700 rounded-2xl font-semibold text-white transition-all flex items-center justify-center gap-2"
+            >
+              <span>💾</span> Save Today's Progress
+            </button>
+          </div>
+        )}
+
+        {activeTab === 'history' && (
+          <div className="space-y-6">
+            {history.length === 0 ? (
+              <div className="bg-slate-800 rounded-3xl p-12 text-center">
+                <p className="text-6xl mb-4">📊</p>
+                <h3 className="text-xl font-semibold text-white mb-2">No History Yet</h3>
+                <p className="text-slate-400">Start counting your dhikr and save your progress to see your history here.</p>
+              </div>
+            ) : (
+              <>
+                <div className="bg-slate-800 rounded-3xl p-6">
+                  <h3 className="text-lg font-semibold mb-4">Weekly Overview</h3>
+                  <div className="h-48">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={history.slice(-7)}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                        <XAxis dataKey="date" tickFormatter={formatDate} stroke="#94a3b8" fontSize={12} />
+                        <YAxis stroke="#94a3b8" fontSize={12} />
+                        <Tooltip 
+                          contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '12px' }}
+                          labelFormatter={formatDate}
+                        />
+                        <Bar dataKey="totalCount" fill="#10b981" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                <div className="bg-slate-800 rounded-3xl p-6">
+                  <h3 className="text-lg font-semibold mb-4">Progress Trend</h3>
+                  <div className="h-48">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={history}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                        <XAxis dataKey="date" tickFormatter={formatDate} stroke="#94a3b8" fontSize={12} />
+                        <YAxis stroke="#94a3b8" fontSize={12} />
+                        <Tooltip 
+                          contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '12px' }}
+                          labelFormatter={formatDate}
+                        />
+                        <Line type="monotone" dataKey="totalCount" stroke="#10b981" strokeWidth={2} dot={{ fill: '#10b981' }} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                <div className="bg-slate-800 rounded-3xl p-6">
+                  <h3 className="text-lg font-semibold mb-4">Daily Records</h3>
+                  <div className="space-y-3">
+                    {history.slice().reverse().map((log, index) => (
+                      <div key={index} className="p-4 bg-slate-700/50 rounded-2xl">
+                        <div className="flex justify-between items-center mb-3">
+                          <p className="font-semibold text-white">{formatDate(log.date)}</p>
+                          <div className="text-right">
+                            <p className="text-xl font-bold text-emerald-400">{log.totalCount}</p>
+                            <p className="text-xs text-slate-400">total</p>
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          {dhikrs.map((dhikr) => {
+                            const count = log.dhikrs[dhikr.id] || 0;
+                            if (count === 0) return null;
+                            
+                            return (
+                              <div key={dhikr.id} className="flex justify-between items-center">
+                                <div className="flex items-center gap-2">
+                                  <div className={`w-3 h-3 rounded-full ${dhikr.color}`}></div>
+                                  <span className="text-sm text-slate-300">{dhikr.name}</span>
+                                </div>
+                                <span className="text-sm font-medium text-white">{count}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'manage' && (
+          <div className="space-y-4">
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 rounded-2xl font-semibold text-white transition-all flex items-center justify-center gap-2"
+            >
+              <span>+</span> Add New Dhikr
+            </button>
+
+            <div className="space-y-3">
+              {dhikrs.map((dhikr) => (
+                <div key={dhikr.id} className="bg-slate-800 rounded-2xl p-4 flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className={`w-12 h-12 ${dhikr.color} rounded-xl flex items-center justify-center text-2xl`}>
+                      📿
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-white">{dhikr.name}</h4>
+                      <p className="text-emerald-400 text-sm">{dhikr.arabicName}</p>
+                      <p className="text-slate-400 text-xs">Target: {dhikr.target}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => deleteDhikr(dhikr.id)}
+                    className="p-2 text-red-400 hover:bg-red-500/20 rounded-xl transition-all"
+                  >
+                    🗑️
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </main>
+
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-800 rounded-3xl p-6 w-full max-w-sm">
+            <h3 className="text-xl font-bold mb-6">Add New Dhikr</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-slate-400 mb-2">Name (English)</label>
+                <input
+                  type="text"
+                  value={newDhikr.name}
+                  onChange={(e) => setNewDhikr({ ...newDhikr, name: e.target.value })}
+                  className="w-full px-4 py-3 bg-slate-700 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  placeholder="e.g., SubhanAllah"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm text-slate-400 mb-2">Name (Arabic)</label>
+                <input
+                  type="text"
+                  value={newDhikr.arabicName}
+                  onChange={(e) => setNewDhikr({ ...newDhikr, arabicName: e.target.value })}
+                  className="w-full px-4 py-3 bg-slate-700 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-right"
+                  placeholder="e.g., سبحان الله"
+                  dir="rtl"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm text-slate-400 mb-2">Daily Target</label>
+                <input
+                  type="number"
+                  value={newDhikr.target}
+                  onChange={(e) => setNewDhikr({ ...newDhikr, target: parseInt(e.target.value) || 100 })}
+                  className="w-full px-4 py-3 bg-slate-700 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  placeholder="100"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="flex-1 py-3 bg-slate-700 hover:bg-slate-600 rounded-xl font-semibold text-white transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={addNewDhikr}
+                className="flex-1 py-3 bg-emerald-500 hover:bg-emerald-400 rounded-xl font-semibold text-white transition-all"
+              >
+                Add
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default App;
