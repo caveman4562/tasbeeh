@@ -1,1 +1,64 @@
+import React, { useState, useEffect } from 'react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
 
+interface Dhikr {
+  id: string;
+  name: string;
+  arabicName: string;
+  target: number;
+  currentCount: number;
+  color: string;
+}
+
+interface DailyLog {
+  date: string;
+  totalCount: number;
+  dhikrs: { [key: string]: number };
+}
+
+const defaultDhikrs: Dhikr[] = [
+  { id: '1', name: 'SubhanAllah', arabicName: 'سبحان الله', target: 100, currentCount: 0, color: 'bg-emerald-500' },
+  { id: '2', name: 'Alhamdulillah', arabicName: 'الحمد لله', target: 100, currentCount: 0, color: 'bg-teal-500' },
+  { id: '3', name: 'Allahu Akbar', arabicName: 'الله أكبر', target: 100, currentCount: 0, color: 'bg-cyan-500' },
+  { id: '4', name: 'Astaghfirullah', arabicName: 'أستغفر الله', target: 100, currentCount: 0, color: 'bg-sky-500' },
+  { id: '5', name: 'La ilaha illa Allah', arabicName: 'لا إله إلا الله', target: 100, currentCount: 0, color: 'bg-blue-500' },
+  { id: '6', name: 'Durood Shareef', arabicName: 'اللهم صل على محمد', target: 100, currentCount: 0, color: 'bg-amber-500' },
+  { id: '7', name: 'Durood Ibrahim', arabicName: 'اللهم صل على محمد وعلى آل محمد', target: 100, currentCount: 0, color: 'bg-orange-500' },
+];
+
+const App: React.FC = () => {
+  const [dhikrs, setDhikrs] = useState<Dhikr[]>(() => {
+    const saved = localStorage.getItem('tasbeeh-dhikrs');
+    return saved ? JSON.parse(saved) : defaultDhikrs;
+  });
+  
+  const [selectedDhikr, setSelectedDhikr] = useState<Dhikr>(dhikrs[0]);
+  const [currentCount, setCurrentCount] = useState<number>(() => {
+    const saved = localStorage.getItem(`tasbeeh-current-${selectedDhikr.id}`);
+    return saved ? parseInt(saved) : 0;
+  });
+  
+  const [history, setHistory] = useState<DailyLog[]>(() => {
+    const saved = localStorage.getItem('tasbeeh-history');
+    return saved ? JSON.parse(saved) : [];
+  });
+  
+  const [activeTab, setActiveTab] = useState<'counter' | 'history' | 'manage'>('counter');
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newDhikr, setNewDhikr] = useState({ name: '', arabicName: '', target: 100 });
+  const [sessionCount, setSessionCount] = useState(0);
+
+  useEffect(() => {
+    localStorage.setItem('tasbeeh-dhikrs', JSON.stringify(dhikrs));
+  }, [dhikrs]);
+
+  useEffect(() => {
+    localStorage.setItem(`tasbeeh-current-${selectedDhikr.id}`, currentCount.toString());
+  }, [currentCount, selectedDhikr.id]);
+
+  useEffect(() => {
+    localStorage.setItem('tasbeeh-history', JSON.stringify(history));
+  }, [history]);
+
+  useEffect(() => {
+    setCurrentCount(selectedDhikr.currentCount);
